@@ -1,0 +1,3 @@
+C:\Projekte\Fingerprinting\GraustufenViewer\obj\x86\Debug\Fingerprinting.exe
+C:\Projekte\Fingerprinting\GraustufenViewer\obj\x86\Debug\Fingerprinting.xml
+C:\Projekte\Fingerprinting\GraustufenViewer\obj\x86\Debug\Fingerprinting.pdb
