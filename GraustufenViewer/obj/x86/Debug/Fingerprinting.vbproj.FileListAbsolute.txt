@@ -1,3 +1,12 @@
 C:\Projekte\Fingerprinting\GraustufenViewer\obj\x86\Debug\Fingerprinting.exe
 C:\Projekte\Fingerprinting\GraustufenViewer\obj\x86\Debug\Fingerprinting.xml
 C:\Projekte\Fingerprinting\GraustufenViewer\obj\x86\Debug\Fingerprinting.pdb
+C:\Users\gregorczykt96\Downloads\Fingerprinting-main\Fingerprinting-main\GraustufenViewer\obj\x86\Debug\Fingerprinting.exe
+C:\Users\gregorczykt96\Downloads\Fingerprinting-main\Fingerprinting-main\GraustufenViewer\obj\x86\Debug\Fingerprinting.xml
+C:\Users\gregorczykt96\Downloads\Fingerprinting-main\Fingerprinting-main\GraustufenViewer\obj\x86\Debug\Fingerprinting.pdb
+C:\Users\gregorczykt96\Downloads\Fingerprinting-main\Fingerprinting-main\GraustufenViewer\bin\Debug\Fingerprinting.exe
+C:\Users\gregorczykt96\Downloads\Fingerprinting-main\Fingerprinting-main\GraustufenViewer\bin\Debug\Fingerprinting.pdb
+C:\Users\gregorczykt96\Downloads\Fingerprinting-main\Fingerprinting-main\GraustufenViewer\bin\Debug\Fingerprinting.xml
+C:\Users\gregorczykt96\Downloads\Fingerprinting-main\Fingerprinting-main\GraustufenViewer\obj\x86\Debug\Fingerprinting.frmMain.resources
+C:\Users\gregorczykt96\Downloads\Fingerprinting-main\Fingerprinting-main\GraustufenViewer\obj\x86\Debug\Fingerprinting.Resources.resources
+C:\Users\gregorczykt96\Downloads\Fingerprinting-main\Fingerprinting-main\GraustufenViewer\obj\x86\Debug\Fingerprinting.vbproj.GenerateResource.Cache

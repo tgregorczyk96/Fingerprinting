@@ -11,9 +11,20 @@ Public Class frmMain
         Rechteck
     End Enum
 
+    Private _fingerprintM As Integer = 1000003
+    Private _fingerprintR As Integer = 257
+
+    Private _fingerprintValueA As Integer = -1
+    Private _fingerprintValueB As Integer = -1
+
     Private _originalPgm As PgmImage = Nothing
     Private _workingPgm As PgmImage = Nothing
     Private _displayBitmap As Bitmap = Nothing
+
+    Private _fingerprintImageA As PgmImage = Nothing
+    Private _fingerprintImageB As PgmImage = Nothing
+    Private _fingerprintBitmapA As Bitmap = Nothing
+    Private _fingerprintBitmapB As Bitmap = Nothing
 
     Private _zoomFactor As Double = 1.0
     Private _fitToWindow As Boolean = False
@@ -45,11 +56,15 @@ Public Class frmMain
 
         Me.KeyPreview = True
 
-        pbImage.SizeMode = PictureBoxSizeMode.StretchImage
+        pbImage1.SizeMode = PictureBoxSizeMode.Zoom
+        pbImage2.SizeMode = PictureBoxSizeMode.Zoom
+
+        pbImage1.BorderStyle = BorderStyle.FixedSingle
+        pbImage2.BorderStyle = BorderStyle.FixedSingle
 
         Me.AllowDrop = True
         pnlImageHost.AllowDrop = True
-        pbImage.AllowDrop = True
+        pbImage1.AllowDrop = True
         lblDropHint.AllowDrop = True
 
         nudGrauwert.Minimum = 0
@@ -60,7 +75,13 @@ Public Class frmMain
         nudPixeldicke.Maximum = 20
         nudPixeldicke.Value = 1
 
+        txtBoxHashA.ReadOnly = True
+        txtBoxHashB.ReadOnly = True
+        TextBox2.ReadOnly = True
+
         ResetDetails()
+        ResetFingerprintingAnzeige()
+        AktualisiereBildLayout()
         AktualisiereDropHint()
         AktualisiereZoomAnzeige()
         SetzeWerkzeug(ToolMode.Zeiger)
@@ -103,7 +124,7 @@ Public Class frmMain
         _istZeichnenAktiv = False
         _letzterPixelPunkt = New Point(-1, -1)
 
-        pbImage.Capture = False
+        pbImage1.Capture = False
         pnlImageHost.Capture = False
     End Sub
 
@@ -151,7 +172,11 @@ Public Class frmMain
     End Function
 
     Private Sub AktualisiereDropHint()
-        lblDropHint.Visible = (_workingPgm Is Nothing)
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            lblDropHint.Visible = False
+        Else
+            lblDropHint.Visible = (_workingPgm Is Nothing)
+        End If
     End Sub
 
     Private Sub AktualisiereModusAnzeige()
@@ -161,6 +186,8 @@ Public Class frmMain
             sslModus.Text = "Modus: Ansicht"
         ElseIf tabSide.SelectedTab Is tpZeichnen Then
             sslModus.Text = "Modus: Zeichnen (" & HoleWerkzeugText(_aktuellesWerkzeug) & ")"
+        ElseIf tabSide.SelectedTab Is tpFingerprinting Then
+            sslModus.Text = "Modus: Fingerprinting"
         Else
             sslModus.Text = "Modus: Details"
         End If
@@ -168,6 +195,14 @@ Public Class frmMain
 
     Private Sub AktualisierePanningCursor()
         Dim aktuellerCursor As Cursor = Cursors.Default
+
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            pbImage1.Cursor = Cursors.Default
+            pbImage2.Cursor = Cursors.Default
+            pnlImageHost.Cursor = Cursors.Default
+            lblDropHint.Cursor = Cursors.Default
+            Exit Sub
+        End If
 
         If _istPanning Then
             aktuellerCursor = Cursors.SizeAll
@@ -182,9 +217,34 @@ Public Class frmMain
             End Select
         End If
 
-        pbImage.Cursor = aktuellerCursor
+        pbImage1.Cursor = aktuellerCursor
         pnlImageHost.Cursor = aktuellerCursor
         lblDropHint.Cursor = aktuellerCursor
+    End Sub
+
+    Private Sub AktualisiereBildLayout()
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            lblDropHint.Visible = False
+
+            pbImage1.Visible = True
+            pbImage2.Visible = True
+
+            pbImage1.Dock = DockStyle.Left
+            pbImage1.Width = pnlImageHost.ClientSize.Width \ 2
+
+            pbImage2.Dock = DockStyle.Fill
+
+            pbImage1.BringToFront()
+            pbImage2.BringToFront()
+        Else
+            pbImage2.Visible = False
+            pbImage2.Dock = DockStyle.None
+
+            pbImage1.Visible = True
+            pbImage1.Dock = DockStyle.None
+
+            lblDropHint.Visible = (_workingPgm Is Nothing)
+        End If
     End Sub
 
     Private Sub StartePanning()
@@ -195,7 +255,7 @@ Public Class frmMain
         Dim startScrollPos As Point = pnlImageHost.AutoScrollPosition
         _panStartScroll = New Point(-startScrollPos.X, -startScrollPos.Y)
 
-        pbImage.Capture = True
+        pbImage1.Capture = True
         pnlImageHost.Capture = True
 
         AktualisierePanningCursor()
@@ -218,7 +278,7 @@ Public Class frmMain
 
         _istPanning = False
 
-        pbImage.Capture = False
+        pbImage1.Capture = False
         pnlImageHost.Capture = False
 
         AktualisierePanningCursor()
@@ -231,7 +291,26 @@ Public Class frmMain
             _displayBitmap = Nothing
         End If
 
-        pbImage.Image = Nothing
+        If tabSide.SelectedTab IsNot tpFingerprinting Then
+            pbImage1.Image = Nothing
+        End If
+    End Sub
+
+    Private Sub VerwerfeFingerprintBitmaps()
+        If _fingerprintBitmapA IsNot Nothing Then
+            _fingerprintBitmapA.Dispose()
+            _fingerprintBitmapA = Nothing
+        End If
+
+        If _fingerprintBitmapB IsNot Nothing Then
+            _fingerprintBitmapB.Dispose()
+            _fingerprintBitmapB = Nothing
+        End If
+
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            pbImage1.Image = Nothing
+            pbImage2.Image = Nothing
+        End If
     End Sub
 
     Private Function HoleAktuellenZoomProzent() As Integer
@@ -257,13 +336,21 @@ Public Class frmMain
     End Sub
 
     Private Sub AktualisiereBildAnzeige()
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            AktualisiereFingerprintVorschau()
+            AktualisiereDropHint()
+            AktualisierePanningCursor()
+            Exit Sub
+        End If
+
         VerwerfeDisplayBitmap()
 
         If _workingPgm Is Nothing Then
-            pbImage.Width = 400
-            pbImage.Height = 300
-            pbImage.Left = IMAGE_MARGIN
-            pbImage.Top = IMAGE_MARGIN
+            pbImage1.Width = 400
+            pbImage1.Height = 300
+            pbImage1.Left = IMAGE_MARGIN
+            pbImage1.Top = IMAGE_MARGIN
+            pbImage2.Image = Nothing
             AktualisiereDropHint()
             AktualisiereZoomAnzeige()
             AktualisierePanningCursor()
@@ -275,7 +362,8 @@ Public Class frmMain
         End If
 
         _displayBitmap = _workingPgm.ToBitmap()
-        pbImage.Image = _displayBitmap
+        pbImage1.Image = _displayBitmap
+        pbImage2.Image = Nothing
 
         Dim neueBreite As Integer = CInt(Math.Round(_workingPgm.Width * _zoomFactor))
         Dim neueHoehe As Integer = CInt(Math.Round(_workingPgm.Height * _zoomFactor))
@@ -283,14 +371,80 @@ Public Class frmMain
         If neueBreite < 1 Then neueBreite = 1
         If neueHoehe < 1 Then neueHoehe = 1
 
-        pbImage.Width = neueBreite
-        pbImage.Height = neueHoehe
-        pbImage.Left = IMAGE_MARGIN
-        pbImage.Top = IMAGE_MARGIN
+        pbImage1.Width = neueBreite
+        pbImage1.Height = neueHoehe
+        pbImage1.Left = IMAGE_MARGIN
+        pbImage1.Top = IMAGE_MARGIN
 
         AktualisiereDropHint()
         AktualisiereZoomAnzeige()
         AktualisierePanningCursor()
+    End Sub
+
+    Private Sub AktualisiereFingerprintVorschau()
+        VerwerfeFingerprintBitmaps()
+
+        If _fingerprintImageA IsNot Nothing Then
+            _fingerprintBitmapA = _fingerprintImageA.ToBitmap()
+            pbImage1.Image = _fingerprintBitmapA
+        Else
+            pbImage1.Image = Nothing
+        End If
+
+        If _fingerprintImageB IsNot Nothing Then
+            _fingerprintBitmapB = _fingerprintImageB.ToBitmap()
+            pbImage2.Image = _fingerprintBitmapB
+        Else
+            pbImage2.Image = Nothing
+        End If
+    End Sub
+
+    Private Sub ResetFingerprintingAnzeige()
+        txtBoxHashA.Text = ""
+        txtBoxHashB.Text = ""
+        TextBox2.Text = ""
+
+        _fingerprintImageA = Nothing
+        _fingerprintImageB = Nothing
+
+        _fingerprintValueA = -1
+        _fingerprintValueB = -1
+
+        VerwerfeFingerprintBitmaps()
+    End Sub
+
+    Private Sub LadeFingerprintBildA(ByVal dateipfad As String)
+        If Not IstPgmDatei(dateipfad) Then
+            Throw New Exception("In dieser Version werden nur PGM-Dateien unterstützt.")
+        End If
+
+        _fingerprintImageA = PgmImage.LoadFromFile(dateipfad)
+
+        _fingerprintValueA = -1
+        _fingerprintValueB = -1
+
+        txtBoxHashA.Text = ""
+        txtBoxHashB.Text = ""
+        TextBox2.Text = ""
+
+        AktualisiereFingerprintVorschau()
+    End Sub
+
+    Private Sub LadeFingerprintBildB(ByVal dateipfad As String)
+        If Not IstPgmDatei(dateipfad) Then
+            Throw New Exception("In dieser Version werden nur PGM-Dateien unterstützt.")
+        End If
+
+        _fingerprintImageB = PgmImage.LoadFromFile(dateipfad)
+
+        _fingerprintValueA = -1
+        _fingerprintValueB = -1
+
+        txtBoxHashA.Text = ""
+        txtBoxHashB.Text = ""
+        TextBox2.Text = ""
+
+        AktualisiereFingerprintVorschau()
     End Sub
 
     Private Sub LadeBild(ByVal dateipfad As String)
@@ -448,9 +602,9 @@ Public Class frmMain
     End Sub
 
     Private Function ZeigeNeuBildDialog(ByRef breite As Integer,
-                                    ByRef hoehe As Integer,
-                                    ByRef dateiname As String,
-                                    ByRef kommentar As String) As Boolean
+                                        ByRef hoehe As Integer,
+                                        ByRef dateiname As String,
+                                        ByRef kommentar As String) As Boolean
         Using dlg As New Form()
             dlg.Text = "Neues Bild"
             dlg.FormBorderStyle = FormBorderStyle.FixedDialog
@@ -556,16 +710,16 @@ Public Class frmMain
             Return False
         End If
 
-        If pbImage.Width <= 0 OrElse pbImage.Height <= 0 Then
+        If pbImage1.Width <= 0 OrElse pbImage1.Height <= 0 Then
             Return False
         End If
 
-        If e.X < 0 OrElse e.Y < 0 OrElse e.X >= pbImage.Width OrElse e.Y >= pbImage.Height Then
+        If e.X < 0 OrElse e.Y < 0 OrElse e.X >= pbImage1.Width OrElse e.Y >= pbImage1.Height Then
             Return False
         End If
 
-        Dim bildX As Integer = CInt(Math.Floor(e.X * (_workingPgm.Width / CDbl(pbImage.Width))))
-        Dim bildY As Integer = CInt(Math.Floor(e.Y * (_workingPgm.Height / CDbl(pbImage.Height))))
+        Dim bildX As Integer = CInt(Math.Floor(e.X * (_workingPgm.Width / CDbl(pbImage1.Width))))
+        Dim bildY As Integer = CInt(Math.Floor(e.Y * (_workingPgm.Height / CDbl(pbImage1.Height))))
 
         If bildX < 0 Then bildX = 0
         If bildY < 0 Then bildY = 0
@@ -583,22 +737,22 @@ Public Class frmMain
             Return False
         End If
 
-        If pbImage.Width <= 0 OrElse pbImage.Height <= 0 Then
+        If pbImage1.Width <= 0 OrElse pbImage1.Height <= 0 Then
             Return False
         End If
 
-        Dim clientPunkt As Point = pbImage.PointToClient(Control.MousePosition)
+        Dim clientPunkt As Point = pbImage1.PointToClient(Control.MousePosition)
 
         Dim x As Integer = clientPunkt.X
         Dim y As Integer = clientPunkt.Y
 
         If x < 0 Then x = 0
         If y < 0 Then y = 0
-        If x >= pbImage.Width Then x = pbImage.Width - 1
-        If y >= pbImage.Height Then y = pbImage.Height - 1
+        If x >= pbImage1.Width Then x = pbImage1.Width - 1
+        If y >= pbImage1.Height Then y = pbImage1.Height - 1
 
-        Dim bildX As Integer = CInt(Math.Floor(x * (_workingPgm.Width / CDbl(pbImage.Width))))
-        Dim bildY As Integer = CInt(Math.Floor(y * (_workingPgm.Height / CDbl(pbImage.Height))))
+        Dim bildX As Integer = CInt(Math.Floor(x * (_workingPgm.Width / CDbl(pbImage1.Width))))
+        Dim bildY As Integer = CInt(Math.Floor(y * (_workingPgm.Height / CDbl(pbImage1.Height))))
 
         If bildX < 0 Then bildX = 0
         If bildY < 0 Then bildY = 0
@@ -719,7 +873,7 @@ Public Class frmMain
         _istZeichnenAktiv = True
         _zeichnenStartpunkt = punkt
         _letzterPixelPunkt = punkt
-        pbImage.Capture = True
+        pbImage1.Capture = True
 
         Select Case _aktuellesWerkzeug
             Case ToolMode.Pixel
@@ -730,7 +884,7 @@ Public Class frmMain
     Private Sub BeendeZeichnen()
         _istZeichnenAktiv = False
         _letzterPixelPunkt = New Point(-1, -1)
-        pbImage.Capture = False
+        pbImage1.Capture = False
     End Sub
 
     Private Sub mnuNeu_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles mnuNeu.Click
@@ -1004,7 +1158,11 @@ Public Class frmMain
         End If
     End Sub
 
-    Private Sub pbImage_MouseDown(ByVal sender As Object, ByVal e As System.Windows.Forms.MouseEventArgs) Handles pbImage.MouseDown
+    Private Sub pbImage_MouseDown(ByVal sender As Object, ByVal e As System.Windows.Forms.MouseEventArgs) Handles pbImage1.MouseDown
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            Exit Sub
+        End If
+
         If _workingPgm Is Nothing Then
             Exit Sub
         End If
@@ -1033,6 +1191,10 @@ Public Class frmMain
     End Sub
 
     Private Sub pnlImageHost_MouseDown(ByVal sender As Object, ByVal e As System.Windows.Forms.MouseEventArgs) Handles pnlImageHost.MouseDown
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            Exit Sub
+        End If
+
         If e.Button <> Windows.Forms.MouseButtons.Left Then
             Exit Sub
         End If
@@ -1042,7 +1204,11 @@ Public Class frmMain
         End If
     End Sub
 
-    Private Sub pbImage_MouseMove(ByVal sender As Object, ByVal e As System.Windows.Forms.MouseEventArgs) Handles pbImage.MouseMove
+    Private Sub pbImage_MouseMove(ByVal sender As Object, ByVal e As System.Windows.Forms.MouseEventArgs) Handles pbImage1.MouseMove
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            Exit Sub
+        End If
+
         If _workingPgm Is Nothing Then
             Exit Sub
         End If
@@ -1079,18 +1245,30 @@ Public Class frmMain
     End Sub
 
     Private Sub pnlImageHost_MouseMove(ByVal sender As Object, ByVal e As System.Windows.Forms.MouseEventArgs) Handles pnlImageHost.MouseMove
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            Exit Sub
+        End If
+
         If _istPanning Then
             FuehrePanningAus()
         End If
     End Sub
 
     Private Sub frmMain_MouseMove(ByVal sender As Object, ByVal e As System.Windows.Forms.MouseEventArgs) Handles MyBase.MouseMove
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            Exit Sub
+        End If
+
         If _istPanning Then
             FuehrePanningAus()
         End If
     End Sub
 
-    Private Sub pbImage_MouseUp(ByVal sender As Object, ByVal e As System.Windows.Forms.MouseEventArgs) Handles pbImage.MouseUp
+    Private Sub pbImage_MouseUp(ByVal sender As Object, ByVal e As System.Windows.Forms.MouseEventArgs) Handles pbImage1.MouseUp
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            Exit Sub
+        End If
+
         If _istPanning Then
             BeendePanning()
             Exit Sub
@@ -1118,10 +1296,18 @@ Public Class frmMain
     End Sub
 
     Private Sub pnlImageHost_MouseUp(ByVal sender As Object, ByVal e As System.Windows.Forms.MouseEventArgs) Handles pnlImageHost.MouseUp
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            Exit Sub
+        End If
+
         BeendePanning()
     End Sub
 
     Private Sub frmMain_MouseUp(ByVal sender As Object, ByVal e As System.Windows.Forms.MouseEventArgs) Handles MyBase.MouseUp
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            Exit Sub
+        End If
+
         BeendePanning()
 
         If _istZeichnenAktiv AndAlso (_aktuellesWerkzeug = ToolMode.Linie OrElse _aktuellesWerkzeug = ToolMode.Rechteck) Then
@@ -1139,7 +1325,11 @@ Public Class frmMain
         End If
     End Sub
 
-    Private Sub pbImage_MouseLeave(ByVal sender As Object, ByVal e As System.EventArgs) Handles pbImage.MouseLeave
+    Private Sub pbImage_MouseLeave(ByVal sender As Object, ByVal e As System.EventArgs) Handles pbImage1.MouseLeave
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            Exit Sub
+        End If
+
         If Not _istPanning Then
             lblXWert.Text = "-"
             lblYWert.Text = "-"
@@ -1151,7 +1341,7 @@ Public Class frmMain
         End If
     End Sub
 
-    Private Sub pbImage_MouseEnter(ByVal sender As Object, ByVal e As System.EventArgs) Handles pbImage.MouseEnter
+    Private Sub pbImage_MouseEnter(ByVal sender As Object, ByVal e As System.EventArgs) Handles pbImage1.MouseEnter
         AktiviereFormFokus()
         AktualisierePanningCursor()
     End Sub
@@ -1167,6 +1357,11 @@ Public Class frmMain
     End Sub
 
     Private Sub pnlImageHost_Resize(ByVal sender As Object, ByVal e As System.EventArgs) Handles pnlImageHost.Resize
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            AktualisiereBildLayout()
+            Exit Sub
+        End If
+
         If _fitToWindow AndAlso _workingPgm IsNot Nothing Then
             AktualisiereBildAnzeige()
         End If
@@ -1174,6 +1369,16 @@ Public Class frmMain
 
     Private Sub tabSide_SelectedIndexChanged(ByVal sender As Object, ByVal e As System.EventArgs) Handles tabSide.SelectedIndexChanged
         BeendeAlleInteraktionen()
+
+        AktualisiereBildLayout()
+
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            AktualisiereFingerprintVorschau()
+        Else
+            AktualisiereBildAnzeige()
+        End If
+
+        AktualisiereDropHint()
         AktualisierePanningCursor()
         AktualisiereModusAnzeige()
     End Sub
@@ -1208,7 +1413,12 @@ Public Class frmMain
     End Sub
 
     Private Sub BildDragEnter(ByVal sender As Object, ByVal e As System.Windows.Forms.DragEventArgs) _
-        Handles Me.DragEnter, pnlImageHost.DragEnter, pbImage.DragEnter, lblDropHint.DragEnter
+        Handles Me.DragEnter, pnlImageHost.DragEnter, pbImage1.DragEnter, lblDropHint.DragEnter
+
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            e.Effect = DragDropEffects.None
+            Exit Sub
+        End If
 
         If e.Data.GetDataPresent(DataFormats.FileDrop) Then
             Dim dateien() As String = CType(e.Data.GetData(DataFormats.FileDrop), String())
@@ -1224,7 +1434,11 @@ Public Class frmMain
     End Sub
 
     Private Sub BildDragDrop(ByVal sender As Object, ByVal e As System.Windows.Forms.DragEventArgs) _
-        Handles Me.DragDrop, pnlImageHost.DragDrop, pbImage.DragDrop, lblDropHint.DragDrop
+        Handles Me.DragDrop, pnlImageHost.DragDrop, pbImage1.DragDrop, lblDropHint.DragDrop
+
+        If tabSide.SelectedTab Is tpFingerprinting Then
+            Exit Sub
+        End If
 
         If Not e.Data.GetDataPresent(DataFormats.FileDrop) Then
             Exit Sub
@@ -1247,9 +1461,88 @@ Public Class frmMain
         LadeBild(dateien(0))
     End Sub
 
+    Private Sub btnBildALaden_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles btnBildALaden.Click
+        If ofdBildOeffnen.ShowDialog() <> DialogResult.OK Then
+            Exit Sub
+        End If
+
+        Try
+            LadeFingerprintBildA(ofdBildOeffnen.FileName)
+        Catch ex As Exception
+            MessageBox.Show("Fehler beim Laden von Bild A:" & Environment.NewLine & ex.Message,
+                            "Fingerprinting",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    Private Sub btnBildBLaden_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles btnBildBLaden.Click
+        If ofdBildOeffnen.ShowDialog() <> DialogResult.OK Then
+            Exit Sub
+        End If
+
+        Try
+            LadeFingerprintBildB(ofdBildOeffnen.FileName)
+        Catch ex As Exception
+            MessageBox.Show("Fehler beim Laden von Bild B:" & Environment.NewLine & ex.Message,
+                            "Fingerprinting",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    Private Sub btnFingerprintBerechnen_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles btnFingerprintBerechnen.Click
+        If _fingerprintImageA Is Nothing OrElse _fingerprintImageB Is Nothing Then
+            MessageBox.Show("Bitte zuerst Bild A und Bild B laden.",
+                            "Fingerprinting",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information)
+            Exit Sub
+        End If
+
+        Try
+            _fingerprintValueA = _fingerprintImageA.CalculateFingerprint(_fingerprintR, _fingerprintM)
+            _fingerprintValueB = _fingerprintImageB.CalculateFingerprint(_fingerprintR, _fingerprintM)
+
+            txtBoxHashA.Text = _fingerprintValueA.ToString()
+            txtBoxHashB.Text = _fingerprintValueB.ToString()
+
+            TextBox2.Text = "Fingerprints berechnet."
+        Catch ex As Exception
+            MessageBox.Show("Fehler bei der Fingerprint-Berechnung:" & Environment.NewLine & ex.Message,
+                            "Fingerprinting",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    Private Sub btnVergleichen_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles btnVergleichen.Click
+        If _fingerprintImageA Is Nothing OrElse _fingerprintImageB Is Nothing Then
+            MessageBox.Show("Bitte zuerst Bild A und Bild B laden.",
+                            "Fingerprinting",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information)
+            Exit Sub
+        End If
+
+        If _fingerprintValueA = -1 OrElse _fingerprintValueB = -1 Then
+            MessageBox.Show("Bitte zuerst die Fingerprints berechnen.",
+                            "Fingerprinting",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information)
+            Exit Sub
+        End If
+
+        If _fingerprintValueA <> _fingerprintValueB Then
+            TextBox2.Text = "Die Bilder sind unterschiedlich."
+        Else
+            TextBox2.Text = "Kein Unterschied sichtbar. Die Bilder sind wahrscheinlich gleich."
+        End If
+    End Sub
+
     Private Sub mnuInfo_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles mnuInfo.Click
         MessageBox.Show("Graustufen Viewer" & Environment.NewLine &
-                        "PGM-Viewer mit Basisfunktionen für Ansicht und Bearbeitung.",
+                        "PGM-Viewer mit Basisfunktionen für Ansicht, Bearbeitung und vorbereitetem Fingerprinting-Tab.",
                         "Info",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information)
@@ -1257,7 +1550,20 @@ Public Class frmMain
 
     Protected Overrides Sub OnFormClosed(ByVal e As FormClosedEventArgs)
         VerwerfeDisplayBitmap()
+        VerwerfeFingerprintBitmaps()
         MyBase.OnFormClosed(e)
     End Sub
 
+    Private Sub lblDropHint_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles lblDropHint.Click
+    End Sub
+
+    Private Sub TextBox2_TextChanged(ByVal sender As System.Object, ByVal e As System.EventArgs)
+    End Sub
+
+    Private Sub lblDateiNameWert_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles lblDateiNameWert.Click
+    End Sub
+
+    Private Sub pbImage1_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles pbImage1.Click
+
+    End Sub
 End Class

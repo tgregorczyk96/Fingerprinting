@@ -302,4 +302,26 @@ Public Class PgmImage
         Loop
     End Sub
 
+    Public Function CalculateFingerprint(ByVal r As Integer, ByVal m As Integer) As Integer
+        If m <= 255 Then
+            Throw New Exception("m muss größer als 255 sein.")
+        End If
+
+        If r <= 0 OrElse r >= m Then
+            Throw New Exception("r muss zwischen 1 und m-1 liegen.")
+        End If
+
+        Dim fp As Integer = 0
+        Dim x As Integer
+        Dim y As Integer
+
+        For y = 0 To Me.Height - 1
+            For x = 0 To Me.Width - 1
+                fp = ((fp + Me.GetPixel(x, y)) * r) Mod m
+            Next
+        Next
+
+        Return fp
+    End Function
+
 End Class
